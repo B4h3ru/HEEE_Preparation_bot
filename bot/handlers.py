@@ -240,11 +240,20 @@ def handle_start(message: Message) -> None:
     )
 
     display_username = telegram_user.username or telegram_user.first_name or ""
-    ACTIVE_SESSIONS[telegram_user.id] = {
+    state = {
         "db_user_id": user_id,
         "username": display_username,
     }
-    _show_join_required(message.chat.id, telegram_user.id)
+    ACTIVE_SESSIONS[telegram_user.id] = state
+
+    # Check membership first - skip join message if already a member
+    channel = f"@{bot_settings.required_channel.lstrip('@')}"
+    if _is_channel_member(channel, telegram_user.id):
+        state["channel_verified"] = True
+        ACTIVE_SESSIONS[telegram_user.id] = state
+        _show_departments(message.chat.id, telegram_user.id)
+    else:
+        _show_join_required(message.chat.id, telegram_user.id)
 
 
 def handle_department_select_text(message: Message) -> None:
