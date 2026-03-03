@@ -404,7 +404,7 @@ def handle_quiz_type_select(message: Message) -> None:
 
     if text == BTN_RANDOM_10:
         # One-time free attempt for non-premium users.
-        if (not is_premium) and has_free_10_attempt(db_user_id):
+        if False :# (not is_premium) and has_free_10_attempt(db_user_id):
             _send_premium_info(message.chat.id)
             kb = _quiz_type_keyboard()
             msg = bot.reply_to(
@@ -416,7 +416,7 @@ def handle_quiz_type_select(message: Message) -> None:
             return
         wanted = 10
     elif text in (BTN_RANDOM_50, BTN_RANDOM_100):
-        if not is_premium:
+        if False: #not is_premium:
             _send_premium_info(message.chat.id)
             kb = _quiz_type_keyboard()
             msg = bot.reply_to(

@@ -23,10 +23,10 @@ class BotSettings:
 
 @dataclass
 class DBSettings:
-    host: str = os.getenv("DB_HOST", "localhost")
+    host: str = os.getenv("DB_HOST", "localhost").strip()
     port: int = int(os.getenv("DB_PORT", "3306"))
-    name: str = os.getenv("DB_NAME", "heee_bot")
-    user: str = os.getenv("DB_USER", "root")
+    name: str = os.getenv("DB_NAME", "heee_bot").strip()
+    user: str = os.getenv("DB_USER", "root").strip()
     password: str = os.getenv("DB_PASSWORD", "")
 
 

@@ -3,12 +3,11 @@ Backup executor script - runs heee_preparation (1).sql against the configured da
 Use to restore schema and data from backup.
 
 Usage:
-    python run_backup_sql.py
-    python run_backup_sql.py --file "path/to/backup.sql"
+    python run_backup_sql.py --drop-tables
+    python run_backup_sql.py --file "path/to/backup.sql" --drop-tables
 """
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -18,6 +17,14 @@ from config.settings import db_settings
 
 
 DEFAULT_SQL_FILE = Path(__file__).parent / "heee_preparation (1).sql"
+
+
+def _safe_print(text: str) -> None:
+    """Print text, handling Unicode on Windows."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("utf-8", errors="replace").decode("utf-8"))
 
 
 TABLES_ORDER = [
@@ -42,45 +49,34 @@ def drop_tables(conn) -> None:
 
 
 def execute_sql_file(conn, sql_path: Path) -> None:
-    """Execute SQL file. Handles phpMyAdmin dump format."""
+    """Execute SQL file using multi-statement execution."""
     content = sql_path.read_text(encoding="utf-8", errors="replace")
-
-    # Remove SQL comments (-- and /* */)
-    content = re.sub(r"--[^\n]*", "", content)
-    content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
-
-    # Split by semicolon, keep multi-line statements
-    raw_statements = [s.strip() for s in content.split(";") if s.strip()]
-
-    statements = []
-    for stmt in raw_statements:
-        # Skip empty, SET NAMES, SET modes (we handle those separately)
-        upper = stmt.upper()
-        if not stmt or upper.startswith("SET NAMES") or upper.startswith("SET TIME_ZONE"):
-            continue
-        if "START TRANSACTION" in upper or "COMMIT" in upper:
-            continue
-        statements.append(stmt)
 
     cursor = conn.cursor()
     try:
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+        cursor.execute("SET sql_require_primary_key = 0")
         conn.commit()
 
-        for i, stmt in enumerate(statements):
-            try:
-                cursor.execute(stmt)
-                if "CREATE TABLE" in stmt.upper() or "INSERT INTO" in stmt.upper():
-                    preview = stmt[:60].replace("\n", " ")
-                    print(f"  [{i+1}/{len(statements)}] OK: {preview}...")
-            except mysql.connector.Error as err:
-                print(f"  [{i+1}/{len(statements)}] Error: {err}")
-                print(f"     Statement: {stmt[:200]}...")
-
-        conn.commit()
+        try:
+            cursor.execute(content)
+            while cursor.with_rows:
+                cursor.fetchall()
+            while cursor.nextset():
+                if cursor.with_rows:
+                    cursor.fetchall()
+            conn.commit()
+            _safe_print("  Executed successfully.")
+        except mysql.connector.Error as err:
+            _safe_print(f"  Error: {err}")
+            conn.rollback()
     finally:
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-        conn.commit()
+        try:
+            cursor.execute("SET sql_require_primary_key = 1")
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+            conn.commit()
+        except Exception:
+            pass
         cursor.close()
 
 
@@ -103,13 +99,19 @@ def main() -> None:
         print(f"Error: SQL file not found: {args.file}")
         sys.exit(1)
 
-    print(f"Connecting to {db_settings.host}:{db_settings.port}/{db_settings.name}...")
+    host = db_settings.host
+    port = db_settings.port
+    db_name = db_settings.name
+    user = db_settings.user
+    password = db_settings.password
+
+    print(f"Connecting to {host}:{port}/{db_name}...")
     conn = mysql.connector.connect(
-        host=db_settings.host,
-        port=db_settings.port,
-        database=db_settings.name,
-        user=db_settings.user,
-        password=db_settings.password,
+        host=host,
+        port=port,
+        database=db_name,
+        user=user,
+        password=password,
         ssl_disabled=False,
         ssl_verify_cert=False,
     )
