@@ -526,6 +526,7 @@ def send_current_question(chat_id: int, telegram_id: int) -> None:
         chat_id,
         "\n".join(text_lines),
         reply_markup=keyboard,
+        parse_mode="",
     )
 
 
@@ -626,7 +627,12 @@ def handle_answer(call: CallbackQuery) -> None:
     keyboard.add(InlineKeyboardButton(text="Next", callback_data=f"next_{question_id}"))
 
     bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, feedback_text, reply_markup=keyboard)
+    bot.send_message(
+        call.message.chat.id,
+        feedback_text,
+        reply_markup=keyboard,
+        parse_mode="",
+    )
 
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("next_"))
@@ -707,10 +713,15 @@ def handle_unknown_message(message: Message) -> None:
             "Unknown command. Please send /start to begin.",
         )
         return
-
+    # If we haven't yet marked the user as verified, re-check membership.
     if not state.get("channel_verified"):
-        _show_join_required(message.chat.id, telegram_id)
-        return
+        channel = f"@{bot_settings.required_channel.lstrip('@')}"
+        if _is_channel_member(channel, telegram_id):
+            state["channel_verified"] = True
+            ACTIVE_SESSIONS[telegram_id] = state
+        else:
+            _show_join_required(message.chat.id, telegram_id)
+            return
 
     if step == "in_quiz":
         bot.reply_to(

@@ -542,7 +542,8 @@ def _handle_manage_question_pick_subject(message: Message) -> None:
             InlineKeyboardButton("Delete", callback_data=f"adm_q_del_{q['id']}"),
             InlineKeyboardButton("Edit", callback_data=f"adm_q_edit_{q['id']}"),
         )
-        bot.send_message(message.chat.id, text, reply_markup=kb)
+        # Send as plain text to avoid HTML/Markdown parsing issues
+        bot.send_message(message.chat.id, text, reply_markup=kb, parse_mode="")
     bot.send_message(
         message.chat.id,
         f"Done. {len(questions)} question(s). Use Home/Back or Manage Question again.",
@@ -978,6 +979,7 @@ def handle_admin_question_edit_start(call: CallbackQuery) -> None:
         call.message.chat.id,
         f"Send new question text (or '-' to keep current):\nCurrent: {data['question_text'][:150]}{'…' if len(data['question_text']) > 150 else ''}",
         reply_markup=_nav_only_keyboard(),
+        parse_mode="",
     )
     bot.register_next_step_handler(msg, _handle_edit_question_text)
 
@@ -1005,6 +1007,7 @@ def _handle_edit_question_text(message: Message) -> None:
         message.chat.id,
         f"Send new explanation (or '-' to keep current):\nCurrent: {current}{'…' if len(state.get('current_explanation') or '') > 100 else ''}",
         reply_markup=_nav_only_keyboard(),
+        parse_mode="",
     )
     bot.register_next_step_handler(msg, _handle_edit_question_explanation)
 
@@ -1033,6 +1036,7 @@ def _handle_edit_question_explanation(message: Message) -> None:
         message.chat.id,
         "Send 4 options, one per line. Mark correct with leading * (e.g. '*4').\nCurrent:\n" + (current_preview or "(none)"),
         reply_markup=_nav_only_keyboard(),
+        parse_mode="",
     )
     bot.register_next_step_handler(msg, _handle_edit_question_options)
 
