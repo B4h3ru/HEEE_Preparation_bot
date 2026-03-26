@@ -17,6 +17,7 @@ from models.departments import list_departments
 from models.subjects import list_subjects_by_department
 from models.questions import get_random_questions
 from models.options import get_options_for_question
+from models.premium_policy import get_allow_all
 from models.sessions import (
     create_quiz_session,
     add_session_questions,
@@ -51,12 +52,12 @@ def _departments_keyboard() -> ReplyKeyboardMarkup:
     return kb
 
 
-def _subjects_keyboard(department_id: int) -> ReplyKeyboardMarkup | None:
-    subjects = list_subjects_by_department(department_id)
-    if not subjects:
+def _categories_keyboard(department_id: int) -> ReplyKeyboardMarkup | None:
+    categories = list_subjects_by_department(department_id)
+    if not categories:
         return None
     kb = ReplyKeyboardMarkup(resize_keyboard=True)
-    for s in subjects:
+    for s in categories:
         kb.row(KeyboardButton(s["name"]))
     kb.row(KeyboardButton(BTN_SUB_PREMIUM))
     kb.row(KeyboardButton(NAV_HOME), KeyboardButton(NAV_BACK))
@@ -80,6 +81,14 @@ def _quiz_nav_keyboard() -> ReplyKeyboardMarkup:
 
 
 def _send_premium_info(chat_id: int) -> None:
+    allow_all = get_allow_all()
+    if allow_all:
+        bot.send_message(
+            chat_id,
+            "Congratulation! You can access all questions without any Premium subscription in this time.",
+        )
+        return
+
     text = (
         "To subscribe to Premium:\n"
         "1) Send the subscription fee 100-Birr to account:\n\n"
@@ -169,27 +178,27 @@ def _show_departments(chat_id: int, telegram_id: int, show_welcome: bool = True)
     bot.register_next_step_handler(msg, handle_department_select_text)
 
 
-def _show_subjects(chat_id: int, telegram_id: int) -> None:
+def _show_categories(chat_id: int, telegram_id: int) -> None:
     state = ACTIVE_SESSIONS.get(telegram_id, {})
     department_id = state.get("department_id")
     department_name = state.get("department_name", "")
-    kb = _subjects_keyboard(department_id)
+    kb = _categories_keyboard(department_id)
     if kb is None:
-        bot.send_message(chat_id, "No subjects for this department. Returning to home.")
+        bot.send_message(chat_id, "No categories for this department. Returning to home.")
         # Clear department context and go back to departments list
         state.pop("department_id", None)
         state.pop("department_name", None)
         ACTIVE_SESSIONS[telegram_id] = state
         _show_departments(chat_id, telegram_id, show_welcome=False)
         return
-    state["step"] = "choose_subject"
+    state["step"] = "choose_category"
     ACTIVE_SESSIONS[telegram_id] = state
     msg = bot.send_message(
         chat_id,
-        f"Department: {department_name or department_id}\nChoose a subject:",
+        f"Department: {department_name or department_id}\nChoose a category:",
         reply_markup=kb,
     )
-    bot.register_next_step_handler(msg, handle_subject_select_text)
+    bot.register_next_step_handler(msg, handle_category_select_text)
 
 
 @bot.message_handler(
@@ -217,7 +226,7 @@ def handle_nav_during_quiz(message: Message) -> None:
     bot.send_message(
         message.chat.id,
         "You are in the middle of a practice session.\n"
-        "Do you want to cancel this session and go back to the subject list?",
+        "Do you want to cancel this session and go back to the category list?",
         reply_markup=keyboard,
     )
 
@@ -293,10 +302,10 @@ def handle_department_select_text(message: Message) -> None:
     state.update({"department_id": department_id, "department_name": dept["name"]})
     ACTIVE_SESSIONS[telegram_id] = state
 
-    _show_subjects(message.chat.id, telegram_id)
+    _show_categories(message.chat.id, telegram_id)
 
 
-def handle_subject_select_text(message: Message) -> None:
+def handle_category_select_text(message: Message) -> None:
     if route_commands(message):
         return
     telegram_id = message.from_user.id
@@ -311,7 +320,7 @@ def handle_subject_select_text(message: Message) -> None:
 
     if text == BTN_SUB_PREMIUM:
         _send_premium_info(message.chat.id)
-        _show_subjects(message.chat.id, telegram_id)  # No welcome (subjects list)
+        _show_categories(message.chat.id, telegram_id)  # No welcome (categories list)
         return
 
     if text == NAV_HOME:
@@ -327,24 +336,24 @@ def handle_subject_select_text(message: Message) -> None:
         _show_departments(message.chat.id, telegram_id, show_welcome=False)
         return
 
-    subjects = list_subjects_by_department(department_id)
-    subj = next((s for s in subjects if s["name"] == text), None)
+    categories = list_subjects_by_department(department_id)
+    subj = next((s for s in categories if s["name"] == text), None)
     if not subj:
-        kb = _subjects_keyboard(department_id)
+        kb = _categories_keyboard(department_id)
         msg = bot.reply_to(
             message,
-            "Unknown subject. Please tap one of the buttons.",
+            "Unknown category. Please tap one of the buttons.",
             reply_markup=kb,
         )
-        bot.register_next_step_handler(msg, handle_subject_select_text)
+        bot.register_next_step_handler(msg, handle_category_select_text)
         return
 
-    subject_id = subj["id"]
+    category_id = subj["id"]
 
     state.update(
         {
-            "subject_id": subject_id,
-            "subject_name": subj["name"],
+            "category_id": category_id,
+            "category_name": subj["name"],
             "step": "choose_quiz_type",
         }
     )
@@ -353,7 +362,7 @@ def handle_subject_select_text(message: Message) -> None:
     kb = _quiz_type_keyboard()
     msg = bot.reply_to(
         message,
-        f"Subject: {subj['name']}\nChoose practice mode:",
+        f"category: {subj['name']}\nChoose practice mode:",
         reply_markup=kb,
     )
     bot.register_next_step_handler(msg, handle_quiz_type_select)
@@ -366,8 +375,8 @@ def handle_quiz_type_select(message: Message) -> None:
     state = ACTIVE_SESSIONS.get(telegram_id, {})
     db_user_id = state.get("db_user_id")
     department_id = state.get("department_id")
-    subject_id = state.get("subject_id")
-    if not db_user_id or not department_id or not subject_id:
+    category_id = state.get("category_id")
+    if not db_user_id or not department_id or not category_id:
         bot.reply_to(message, "Session expired. Send /start again.")
         return
 
@@ -386,25 +395,27 @@ def handle_quiz_type_select(message: Message) -> None:
 
     if text == NAV_HOME:
         # Reset and go back to departments list
-        for key in ("department_id", "department_name", "subject_id", "subject_name"):
+        for key in ("department_id", "department_name", "category_id", "category_name"):
             state.pop(key, None)
         ACTIVE_SESSIONS[telegram_id] = state
         _show_departments(message.chat.id, telegram_id, show_welcome=False)
         return
 
     if text == NAV_BACK:
-        # Back to subject list in same department
-        state.pop("subject_id", None)
-        state.pop("subject_name", None)
+        # Back to category list in same department
+        state.pop("category_id", None)
+        state.pop("category_name", None)
         ACTIVE_SESSIONS[telegram_id] = state
-        _show_subjects(message.chat.id, telegram_id)
+        _show_categories(message.chat.id, telegram_id)
         return
 
     is_premium = is_user_premium(db_user_id)
+    allow_all = get_allow_all()
+    effective_is_premium = is_premium or allow_all
 
     if text == BTN_RANDOM_10:
         # One-time free attempt for non-premium users.
-        if False :# (not is_premium) and has_free_10_attempt(db_user_id):
+        if (not effective_is_premium) and has_free_10_attempt(db_user_id):
             _send_premium_info(message.chat.id)
             kb = _quiz_type_keyboard()
             msg = bot.reply_to(
@@ -416,7 +427,7 @@ def handle_quiz_type_select(message: Message) -> None:
             return
         wanted = 10
     elif text in (BTN_RANDOM_50, BTN_RANDOM_100):
-        if False: #not is_premium:
+        if not effective_is_premium:
             _send_premium_info(message.chat.id)
             kb = _quiz_type_keyboard()
             msg = bot.reply_to(
@@ -437,19 +448,19 @@ def handle_quiz_type_select(message: Message) -> None:
         bot.register_next_step_handler(msg, handle_quiz_type_select)
         return
 
-    questions = get_random_questions(department_id, subject_id, wanted)
+    questions = get_random_questions(department_id, category_id, wanted)
     if not questions:
         bot.reply_to(
             message,
-            "No questions for this subject. Please choose another subject.",
+            "No questions for this category. Please choose another category.",
         )
-        _show_subjects(message.chat.id, telegram_id)
+        _show_categories(message.chat.id, telegram_id)
         return
 
     session_id = create_quiz_session(
         db_user_id,
         department_id,
-        subject_id,
+        category_id,
         len(questions),
     )
     question_ids = [q["id"] for q in questions]
@@ -490,12 +501,12 @@ def send_current_question(chat_id: int, telegram_id: int) -> None:
                 f"Quiz finished!\nScore: {summary.get('score', 0)}/{summary.get('total_questions', 0)}",
             )
         # Clear quiz-specific state but keep department context,
-        # then go back to subject list.
+        # then go back to category list.
         for key in ("session_id", "questions", "current_index"):
             state.pop(key, None)
-        state["step"] = "choose_subject"
+        state["step"] = "choose_category"
         ACTIVE_SESSIONS[telegram_id] = state
-        _show_subjects(chat_id, telegram_id)
+        _show_categories(chat_id, telegram_id)
         return
 
     question = questions[index]
@@ -526,7 +537,6 @@ def send_current_question(chat_id: int, telegram_id: int) -> None:
         chat_id,
         "\n".join(text_lines),
         reply_markup=keyboard,
-        parse_mode="",
     )
 
 
@@ -627,12 +637,7 @@ def handle_answer(call: CallbackQuery) -> None:
     keyboard.add(InlineKeyboardButton(text="Next", callback_data=f"next_{question_id}"))
 
     bot.answer_callback_query(call.id)
-    bot.send_message(
-        call.message.chat.id,
-        feedback_text,
-        reply_markup=keyboard,
-        parse_mode="",
-    )
+    bot.send_message(call.message.chat.id, feedback_text, reply_markup=keyboard)
 
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("next_"))
@@ -665,11 +670,11 @@ def handle_cancel_quiz(call: CallbackQuery) -> None:
     # cancel_quiz_yes
     for key in ("session_id", "questions", "current_index"):
         state.pop(key, None)
-    state["step"] = "choose_subject"
+    state["step"] = "choose_category"
     ACTIVE_SESSIONS[telegram_id] = state
 
     bot.answer_callback_query(call.id, "Session cancelled.")
-    _show_subjects(call.message.chat.id, telegram_id)
+    _show_categories(call.message.chat.id, telegram_id)
 
 
 @bot.message_handler(func=lambda m: True, content_types=["text"])
@@ -685,7 +690,7 @@ def handle_unknown_message(message: Message) -> None:
     try:
         from admin.ui_bot import (
             ADMIN_STATE, _is_admin,
-            BTN_LIST_DEPTS, BTN_ADD_DEPT, BTN_LIST_SUBJECTS, BTN_ADD_SUBJECT,
+            BTN_LIST_DEPTS, BTN_ADD_DEPT, BTN_LIST_categories, BTN_ADD_category,
             BTN_ADD_QUESTION, BTN_SET_PREMIUM, BTN_SEND_MAIL,
             NAV_HOME as ADMIN_NAV_HOME, NAV_BACK as ADMIN_NAV_BACK,
         )
@@ -695,7 +700,7 @@ def handle_unknown_message(message: Message) -> None:
                 return
             # Skip if text matches admin button
             admin_buttons = {
-                BTN_LIST_DEPTS, BTN_ADD_DEPT, BTN_LIST_SUBJECTS, BTN_ADD_SUBJECT,
+                BTN_LIST_DEPTS, BTN_ADD_DEPT, BTN_LIST_categories, BTN_ADD_category,
                 BTN_ADD_QUESTION, BTN_SET_PREMIUM, BTN_SEND_MAIL,
                 ADMIN_NAV_HOME, ADMIN_NAV_BACK,
             }
@@ -713,15 +718,10 @@ def handle_unknown_message(message: Message) -> None:
             "Unknown command. Please send /start to begin.",
         )
         return
-    # If we haven't yet marked the user as verified, re-check membership.
+
     if not state.get("channel_verified"):
-        channel = f"@{bot_settings.required_channel.lstrip('@')}"
-        if _is_channel_member(channel, telegram_id):
-            state["channel_verified"] = True
-            ACTIVE_SESSIONS[telegram_id] = state
-        else:
-            _show_join_required(message.chat.id, telegram_id)
-            return
+        _show_join_required(message.chat.id, telegram_id)
+        return
 
     if step == "in_quiz":
         bot.reply_to(
@@ -741,17 +741,17 @@ def handle_unknown_message(message: Message) -> None:
         bot.register_next_step_handler(msg, handle_quiz_type_select)
         return
 
-    if step == "choose_subject":
+    if step == "choose_category":
         department_id = state.get("department_id")
         if department_id:
-            kb = _subjects_keyboard(department_id)
+            kb = _categories_keyboard(department_id)
             if kb:
                 msg = bot.reply_to(
                     message,
-                    "Unknown input. Please choose a subject:",
+                    "Unknown input. Please choose a category:",
                     reply_markup=kb,
                 )
-                bot.register_next_step_handler(msg, handle_subject_select_text)
+                bot.register_next_step_handler(msg, handle_category_select_text)
                 return
 
     # Default: go back to department selection

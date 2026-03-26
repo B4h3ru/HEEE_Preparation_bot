@@ -109,6 +109,14 @@ CREATE TABLE IF NOT EXISTS user_answers (
     INDEX idx_session_id (session_id),
     UNIQUE KEY unique_answer_per_question (session_id, question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Premium access policy (admin controlled, no user data touched)
+CREATE TABLE IF NOT EXISTS premium_policy (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    policy_name TEXT NOT NULL,
+    allow_all BOOLEAN NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 """
 
 

@@ -28,3 +28,20 @@ def create_subject(department_id: int, name: str) -> int:
         )
         return cursor.lastrowid
 
+
+def update_subject_name(subject_id: int, new_name: str) -> int:
+    """Returns affected rows."""
+    with db_cursor(commit=True) as cursor:
+        cursor.execute(
+            "UPDATE subjects SET name = %s WHERE id = %s",
+            (new_name, subject_id),
+        )
+        return cursor.rowcount
+
+
+def delete_subject(subject_id: int) -> int:
+    """Returns affected rows."""
+    with db_cursor(commit=True) as cursor:
+        cursor.execute("DELETE FROM subjects WHERE id = %s", (subject_id,))
+        return cursor.rowcount
+

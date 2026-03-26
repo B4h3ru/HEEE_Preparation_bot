@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from db.connection import db_cursor
 
@@ -73,4 +73,17 @@ def is_user_premium(user_id: int) -> bool:
         )
         row = cursor.fetchone()
         return bool(row and row.get("is_premium"))
+
+
+def list_users_with_premium_status() -> List[Dict[str, Any]]:
+    """Read-only listing of users with their premium status."""
+    with db_cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT telegram_id, username, first_name, last_name, is_premium, created_at
+            FROM users
+            ORDER BY id
+            """
+        )
+        return cursor.fetchall()
 
