@@ -91,23 +91,11 @@ def _send_premium_info(chat_id: int) -> None:
 
     text = (
         "To subscribe to Premium:\n"
-        "1) Send the subscription fee 100-Birr to account:\n\n"
+        "1) Send the subscription fee 150-Birr to account:\n\n"
         "   Bank: Telebirr\n"
         "   Account: 0914370474\n"
         "   Name: Bahiru Walelign\n   ---------------------------\n\n"
-        
-        "   Bank: CBE\n"
-        "   Account: 1000315929109\n"
-        "   Name: Bahiru Walelign\n   ---------------------------\n\n"
-        
-        "   Bank: Awash Bank \n"
-        "   Account: 013201583556600\n"
-        "   Name: Bahiru Walelign\n   ---------------------------\n\n"
-        
-        "   Bank: Bank of Abyssinia (BOA)\n"
-        "   Account: 98812601\n"
-        "   Name: Bahiru Walelign\n   ---------------------------\n\n"
-        
+    
         "2) After payment, send the receipt and your Telegram username "
         "to our support: @HEEE_Prep_Support_service\n\n\n"
         "We will activate your premium access as soon as we verify the payment."
@@ -415,16 +403,16 @@ def handle_quiz_type_select(message: Message) -> None:
 
     if text == BTN_RANDOM_10:
         # One-time free attempt for non-premium users.
-        if (not effective_is_premium) and has_free_10_attempt(db_user_id):
-            _send_premium_info(message.chat.id)
-            kb = _quiz_type_keyboard()
-            msg = bot.reply_to(
-                message,
-                "Free 10-question attempt used. Subscribe to continue:",
-                reply_markup=kb,
-            )
-            bot.register_next_step_handler(msg, handle_quiz_type_select)
-            return
+        # if (not effective_is_premium) and has_free_10_att22empt(db_user_id):
+        #     _send_premium_info(message.chat.id)
+        #     kb = _quiz_type_keyboard()
+        #     msg = bot.reply_to(
+        #         message,
+        #         "Free 10-question attempt used. Subscribe to continue:",
+        #         reply_markup=kb,
+        #     )
+        #     bot.register_next_step_handler(msg, handle_quiz_type_select)
+        #     return
         wanted = 10
     elif text in (BTN_RANDOM_50, BTN_RANDOM_100):
         if not effective_is_premium:
