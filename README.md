@@ -35,3 +35,5 @@ The bot is designed for Ethiopian university students preparing for the Higher E
 This project demonstrates Python development, Telegram Bot API integration, database management, and interactive quiz system development.
 
 It also aims to make exam preparation more accessible through digital learning tools.
+
+bot link : https://t.me/HEEE_PREPARATION_BOT
